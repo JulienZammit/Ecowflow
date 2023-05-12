@@ -10,7 +10,7 @@
 #define LCD_D6  5                //Donnée 3
 #define LCD_D7  11               //Donnée 4
 
-int main() 
+int main(int argc, char *argv[]) 
 {
     char texte[32];               // texte à afficher (maximum 32 caractères)
 
@@ -24,10 +24,16 @@ int main()
     // 2 lignes
     // 16 colonnes
     // 4 bits
-    int lcd = lcdInit(2, 16, 4, LCD_RS, LCD_E, LCD_D4, LCD_D5, LCD_D6, LCD_D7, 0, 0, 0, 0);  
+    int lcd = lcdInit(2, 16, 4, LCD_RS, LCD_E, LCD_D4, LCD_D5, LCD_D6, LCD_D7, 0, 0, 0, 0);
+
+    // Vérification que le programme a bien été appelé avec un argument
+    if (argc != 2) {
+        fprintf (stdout, "Usage: %s texte_a_afficher\n", argv[0]);
+        return 1;
+    }
 
     //Affichage du texte sur l'écran LCD
-    strcpy(texte, "Passez Votre Carte");   // copie du texte dans la variable 'texte'
+    snprintf(texte, 32, "%s", argv[1]);   // récupération de l'argument et copie dans la variable 'texte'
     lcdClear(lcd);              // effacement de l'écran LCD
     lcdPosition(lcd, 0, 0);     // positionnement du curseur sur la première ligne
     lcdPuts(lcd, texte);         // affichage du texte sur l'écran LCD

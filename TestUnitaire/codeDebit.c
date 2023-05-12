@@ -4,7 +4,7 @@
 #include <wiringPi.h>
 #include <unistd.h>
 
-#define FLOW_SENSOR_PIN 26   //GPIO 26 sur Raspberry Pi
+#define FLOW_SENSOR_PIN 29   //GPIO 26 sur Raspberry Pi
 
 int frequence_debit = 0;
 long total_consomme;

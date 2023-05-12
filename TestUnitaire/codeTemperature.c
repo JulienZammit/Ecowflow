@@ -8,7 +8,7 @@
 #include <string.h>
 
 typedef char char16[16];
-char16  * capteurDebit;
+char16  * capteurTemperature;
 
 const char * capteurPath="/sys/bus/w1/devices";
 
@@ -30,7 +30,7 @@ void trouveCapteur(void)
     {
         if( strncmp(dossierFlux->d_name, "28-", 3) == 0)
         {
-            strncpy(capteurDebit[0], dossierFlux->d_name, sizeof(char16)-1);
+            strncpy(capteurTemperature[0], dossierFlux->d_name, sizeof(char16)-1);
         }
     }
 }
@@ -90,6 +90,7 @@ int getTemperature(char * capteur, float * temperature)
         // converti la valeur en point flottant
         *temperature = (float) iTemperature / 1000.0;
         
+        
         return 1;
     }
 
@@ -105,7 +106,7 @@ int main()
     int code_retour;
     
     // initialise Capteurs
-    capteurDebit = malloc(sizeof(char16));
+    capteurTemperature = malloc(sizeof(char16));
 
     //cherche capteur
     trouveCapteur();
@@ -113,9 +114,9 @@ int main()
     //affiche temperature de chaque capteur
     while(1)
     {
-        printf("Capteur %s : ", capteurDebit[0]);
+        printf("Capteur %s : ", capteurTemperature[0]);
         fflush(stdout);
-        code_retour = getTemperature(capteurDebit[0], &temperature);
+        code_retour = getTemperature(capteurTemperature[0], &temperature);
     
         switch(code_retour)
         {
@@ -133,7 +134,7 @@ int main()
         }
         sleep(1);
     }
-    free(capteurDebit);
+    free(capteurTemperature);
 
     return 0;
 }
