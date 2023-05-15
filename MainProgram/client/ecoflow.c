@@ -5,12 +5,22 @@
 #include <wiringPi.h>
 #include <softTone.h>
 #include <lcd.h>
+#include <time.h>
 #include <dirent.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <errno.h>
 #include "RFID/rfid_sensor.h"
+#include <sys/socket.h>
+#include <arpa/inet.h>
+
+#define PORT 8080
+#define ADRESSE_IP_SERVER "10.192.15.138"
+#define TAILLE_INITIALE_TABLEAU 10 // Taille initiale du tableau
+#define DEBIT_MAX 0.1 // Débit maximum pour considérer que l'eau coule en litre par minute
+#define TEMPS_MAX_DEBIT_ZERO 10 // Temps maximum en secondes pendant lequel le débit peut être à zéro
+
 
 // Définition des PINs
 #define BuzzPin 0
@@ -116,6 +126,36 @@ int getTemperature(char * capteur, float * temperature)
 
 int main() {
     char commande[100];
+    char messageServer[100];
+    int compteurTemperature=0;
+    float sommeTemperature=0;
+    float temperatureMoyenne = 0.0;
+    
+    // Variables pour le contrôle du débit d'eau
+    time_t dernier_debit_zero = time(NULL); // Temps du dernier débit à zéro
+    time_t temps_ecoule; // Temps écoulé depuis le dernier débit à zéro
+    
+    // Initialisation socket client
+    int sock = 0;
+    struct sockaddr_in serv_addr;
+    
+    if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+        printf("Socket creation error \n");
+    }
+
+    serv_addr.sin_family = AF_INET;
+    serv_addr.sin_port = htons(PORT);
+
+    // Convertir l'adresse IP en format binaire
+    if(inet_pton(AF_INET, ADRESSE_IP_SERVER, &serv_addr.sin_addr)<=0) {
+        printf("Invalid address/ Address not supported \n");
+    }
+
+    if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
+        printf("Erreur Connection Serveur\n");
+    }else{
+        printf("Connection Réussie Serveur\n");
+    }
     
     // Initialisation de la bibliothèque WiringPi
     if (wiringPiSetup() == -1) {
@@ -154,11 +194,34 @@ int main() {
     float total = 0;
     float debit = 0;
     
+    // Récupération début douche 
+    char dateDouche[64]; // Variable pour stocker la date complète
+
+    // Obtention du temps actuel
+    time_t tempsActuel;
+    time(&tempsActuel);
+
+    // Conversion du temps actuel en structure tm
+    struct tm *tempsLocal = localtime(&tempsActuel);
+
+    // Formatage de la date complète
+    strftime(dateDouche, sizeof(dateDouche), "%d/%m/%Y", tempsLocal);
+
+    printf("Date douche : %s\n", dateDouche);
+    
+    // Chronomètre douche
+    time_t start_time, end_time;
+
+    // Début du chronomètre
+    start_time = time(NULL);
+    
         
     // Boucle de la douche
-    while (total_consomme < (LITRES_MAX * 7.5 * 60)) 
+    while (1) 
     {
+        
         char affichage[32];
+        
         // Lecture du capteur de débit
         debit = ((float)frequence_debit / 7.5); // Convertir le débit en litre par minute
         total = ((float)total_consomme / 7.5 / 60); // Convertir le total en litre
@@ -174,6 +237,9 @@ int main() {
         {
             case 1 : 
                 printf("%6.2f ° Celsius\n", temperature);
+                // Incrémentation compteur température
+                compteurTemperature++;
+                sommeTemperature+=temperature;
                 break;
             case 2 : 
                 printf("--- Erreur CRC\n");
@@ -183,16 +249,36 @@ int main() {
                 break;
             default: 
                 printf("--- Error\n");
+                break;
         }
-
+        printf("Test : %ld | %f \n", total_consomme, LITRES_MAX * 7.5 * 60);
         // Activation du buzzer 1 litre avant la fin de la douche
         if (total_consomme >= ((LITRES_MAX - 1) * 7.5 * 60)) {
             softToneWrite(BuzzPin, 200);
         }
-            // Vérification du dépassement de la limite de consommation
+        
+        // Vérification du dépassement de la limite de consommation
+        
         if (total_consomme >= (LITRES_MAX * 7.5 * 60)) {
+            
+            // Fin du chronomètre
+            end_time = time(NULL);
+
+            
             // Fermeture de l'électrovanne
             digitalWrite(ELECTROVANNE_PIN, LOW);
+            
+            // Calcul moyenne
+            if (compteurTemperature > 0) {
+                temperatureMoyenne = sommeTemperature / compteurTemperature;
+            }
+            
+            // Calcul de la durée en secondes
+            int duration = difftime(end_time, start_time);
+            
+            sprintf(messageServer, "%s:%.2f:%.2f:%d", dateDouche, total, temperatureMoyenne,duration);
+            printf("Message serveur : %s\n", messageServer);
+            send(sock , messageServer , strlen(messageServer) , 0 );
 
             // Arrêt du buzzer
             softToneStop(BuzzPin);
@@ -209,10 +295,36 @@ int main() {
 
             break;
         }
+        
         // Mise à jour de l'affichage sur l'écran LCD
         sprintf(affichage,"%.2fL sur %dL   %6.2f Degres", total, LITRES_MAX, temperature);
         sprintf(commande, "./LCD/writeOnLcd '%s'", affichage);
         system(commande);
+        
+        // Contrôle du débit d'eau
+        if (debit > DEBIT_MAX) {
+            // Réinitialiser le temps écoulé si le débit est différent de zéro
+            dernier_debit_zero = time(NULL);
+        } else {
+            // Calculer le temps écoulé depuis le dernier débit à zéro
+            temps_ecoule = time(NULL) - dernier_debit_zero;
+
+            // Arrêter la douche si le débit est à zéro depuis plus de temps_max_debit_zero secondes
+            if (temps_ecoule >= TEMPS_MAX_DEBIT_ZERO) {
+                // Fin du chronomètre
+                end_time = time(NULL);
+                int duration = difftime(end_time, start_time);
+                if (compteurTemperature > 0) {
+                    temperatureMoyenne = sommeTemperature / compteurTemperature;
+                }
+                sprintf(messageServer, "%s:%.2f:%.2f:%d", dateDouche, total, temperatureMoyenne, duration);
+                printf("Message serveur : %s\n", messageServer);
+                send(sock , messageServer , strlen(messageServer) , 0 );
+                break;
+            }
+        }
+        
+        sleep(1);        
     }
 
     // Fermeture de l'électrovanne
