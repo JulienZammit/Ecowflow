@@ -20,6 +20,7 @@
 #define TAILLE_INITIALE_TABLEAU 10 // Taille initiale du tableau
 #define DEBIT_MAX 0.1 // Débit maximum pour considérer que l'eau coule en litre par minute
 #define TEMPS_MAX_DEBIT_ZERO 10 // Temps maximum en secondes pendant lequel le débit peut être à zéro
+#define LITRE_ON_BUZZER 1
 
 
 // Définition des PINs
@@ -32,9 +33,6 @@
 #define LCD_D6  5                //Donnée 3
 #define LCD_D7  11               //Donnée 4
 #define ELECTROVANNE_PIN 1
-
-// Définition des constantes
-#define LITRES_MAX 2
 
 const char * capteurPath="/sys/bus/w1/devices";
 
@@ -130,6 +128,7 @@ int main() {
     int compteurTemperature=0;
     float sommeTemperature=0;
     float temperatureMoyenne = 0.0;
+    int litre_max = -1;
     
     // Variables pour le contrôle du débit d'eau
     time_t dernier_debit_zero = time(NULL); // Temps du dernier débit à zéro
@@ -149,12 +148,28 @@ int main() {
     // Convertir l'adresse IP en format binaire
     if(inet_pton(AF_INET, ADRESSE_IP_SERVER, &serv_addr.sin_addr)<=0) {
         printf("Invalid address/ Address not supported \n");
+        litre_max = 2;
     }
 
     if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
         printf("Erreur Connection Serveur\n");
+        sprintf(messageServer, "Combien de litre par douche ?");
+        send(sock , messageServer , strlen(messageServer) , 0 );
+        // attente de la réponse du serveur
+        litre_max = read(sock , buffer, 1024);
+        // si problème de lecture
+        if (litre_max < 0) {
+            printf("Erreur de lecture du serveur\n");
+            litre_max = 2;
+        }else{
+            // si pas de problème de lecture
+            buffer[litre_max] = '\0';
+            litre_max = atoi(buffer); // conversion de la chaine de caractère en entier
+            printf("Litre max : %d\n", litre_max);
+        }
     }else{
         printf("Connection Réussie Serveur\n");
+        litre_max = 2;
     }
     
     // Initialisation de la bibliothèque WiringPi
@@ -169,7 +184,6 @@ int main() {
         p_printf(RED,"Must be run as root.\n");
         exit(1);
     }
-    
 
     // Initialisation des capteurs et actionneurs
     pinMode(FLOW_SENSOR_PIN, INPUT);
@@ -215,11 +229,9 @@ int main() {
     // Début du chronomètre
     start_time = time(NULL);
     
-        
     // Boucle de la douche
     while (1) 
     {
-        
         char affichage[32];
         
         // Lecture du capteur de débit
@@ -251,15 +263,15 @@ int main() {
                 printf("--- Error\n");
                 break;
         }
-        printf("Test : %ld | %f \n", total_consomme, LITRES_MAX * 7.5 * 60);
+        printf("Test : %ld | %f \n", total_consomme, litre_max * 7.5 * 60);
         // Activation du buzzer 1 litre avant la fin de la douche
-        if (total_consomme >= ((LITRES_MAX - 1) * 7.5 * 60)) {
+        if (total_consomme >= ((litre_max - LITRE_ON_BUZZER) * 7.5 * 60)) {
             softToneWrite(BuzzPin, 200);
         }
         
         // Vérification du dépassement de la limite de consommation
         
-        if (total_consomme >= (LITRES_MAX * 7.5 * 60)) {
+        if (total_consomme >= (litre_max * 7.5 * 60)) {
             
             // Fin du chronomètre
             end_time = time(NULL);
@@ -297,7 +309,7 @@ int main() {
         }
         
         // Mise à jour de l'affichage sur l'écran LCD
-        sprintf(affichage,"%.2fL sur %dL   %6.2f Degres", total, LITRES_MAX, temperature);
+        sprintf(affichage,"%.2fL sur %dL   %6.2f Degres", total, litre_max, temperature);
         sprintf(commande, "./LCD/writeOnLcd '%s'", affichage);
         system(commande);
         

@@ -8,10 +8,17 @@
 
 #define PORT 8080
 
+int litres_par_douche = 0; // Variable pour stocker le nombre de litres par douche
+
 void *client_handler(void *socket_desc) {
     int client_socket = *(int*)socket_desc;
     char buffer[1024] = {0};
     int valread;
+
+    // Envoyer le nombre de litres par douche au client
+    char response[1024];
+    snprintf(response, sizeof(response), "%d", litres_par_douche);
+    send(client_socket, response, strlen(response), 0);
 
     while ((valread = read(client_socket, buffer, sizeof(buffer)-1)) > 0) {
         printf("Message reçu du client : %s\n", buffer);
@@ -49,6 +56,9 @@ int main() {
     struct sockaddr_in address;
     int opt = 1;
     int addrlen = sizeof(address);
+
+    printf("Veuillez entrer le nombre de litres par douche : ");
+    scanf("%d", &litres_par_douche);
 
     // Créer le socket
     if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0) {

@@ -27,22 +27,22 @@ int main(int argc, char *argv[]) {
 	
     while (loop > 0)
     {
-        if (NotEndless)
-            p_printf(WHITE, "\nWill still handle %d card(s)\n", loop);
-			if (uid_write()!= TAG_OK) 
+        if (NotEndless) // if not endless decrement loop counter
+            p_printf(WHITE, "\nAcceptera toujours %d carte(s)\n", loop); // print loop counter
+			if (uid_write()!= TAG_OK) // if card is not present or not valid
             close_out(1); 
 		
 		// count this card
-        if (NotEndless)    loop--;
+        if (NotEndless)    loop--; // decrement loop counter
         
         // reset potential command line provided options
         set_val = 0;
         use_vblock = 0xff;
 
         // close / disconnect the card
-        PcdHalt();        
-       
-        p_printf(YELLOW,"Please remove card within 5 seconds\n");
+        PcdHalt(); 
+
+        p_printf(YELLOW,"Veuillez retirer la carte dans les 5 secondes\n");
             
         sleep(5);
         

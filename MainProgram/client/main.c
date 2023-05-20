@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#define FILENAME "temp.txt"
+#define FILENAME "temp.txt" // Définition du nom du fichier temporaire
 
 int main() {
     char buf[1024];
@@ -10,8 +10,8 @@ int main() {
     
     while(1){
         char commande[100];
-        sprintf(commande, "./LCD/writeOnLcd 'Passez votre    carte'");
-        system(commande);
+        sprintf(commande, "./LCD/writeOnLcd 'Passez votre    carte'"); // Préparation de la commande pour afficher un message sur un écran LCD
+        system(commande); // Exécution de la commande pour afficher le message sur l'écran LCD
         
         // Exécution du premier programme avec redirection de la sortie vers un fichier temporaire
         system("sudo ./RFID/Read_RFID > " FILENAME);
@@ -32,7 +32,7 @@ int main() {
 
         // Suppression du fichier temporaire
         remove(FILENAME);
-        sleep(1);
+        sleep(1); // Attente de 1 seconde avant la prochaine itération
     }
 
     return 0;
